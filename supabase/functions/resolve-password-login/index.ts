@@ -45,7 +45,16 @@ Deno.serve(async (req) => {
       return Response.json({ error: "No se encontró la cuenta asociada." }, { status: 401, headers: cors });
     }
 
-    return Response.json({ email: userData.user.email }, { headers: cors });
+    const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+      type: "magiclink",
+      email: userData.user.email,
+    });
+
+    if (linkError || !linkData.properties?.hashed_token) {
+      throw linkError ?? new Error("Could not create a one-time login token");
+    }
+
+    return Response.json({ token_hash: linkData.properties.hashed_token }, { headers: cors });
   } catch (error) {
     console.error("resolve-password-login:", error);
     return Response.json({ error: "No se pudo validar el acceso." }, { status: 500, headers: cors });
