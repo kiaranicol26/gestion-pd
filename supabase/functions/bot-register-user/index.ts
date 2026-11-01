@@ -1,5 +1,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+async function digestPassword(password: string, pepper: string) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(pepper), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(password));
+  return Array.from(new Uint8Array(signature), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-bot-secret",
@@ -23,6 +29,8 @@ Deno.serve(async (req) => {
       return Response.json({ error: "Invalid registration payload" }, { status: 400, headers: cors });
     }
 
+    const pepper = Deno.env.get("LOGIN_PASSWORD_PEPPER");
+    if (!pepper) throw new Error("LOGIN_PASSWORD_PEPPER is not configured");
     const client = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const email = `discord-${discord_id}@auth.gestion-pd.invalid`;
     const { data, error } = await client.auth.admin.createUser({
@@ -32,6 +40,25 @@ Deno.serve(async (req) => {
       user_metadata: { provider_id: discord_id, user_name: discord_username.trim(), discord_id },
     });
     if (error) throw error;
+
+    const { error: profileError } = await client.from("profiles").update({
+      discord_username: discord_username.trim(),
+      is_approved: true,
+      approved_at: new Date().toISOString(),
+    }).eq("id", data.user.id);
+    if (profileError) {
+      await client.auth.admin.deleteUser(data.user.id);
+      throw profileError;
+    }
+
+    const { error: credentialError } = await client.from("login_credentials").insert({
+      user_id: data.user.id,
+      password_digest: await digestPassword(password, pepper),
+    });
+    if (credentialError) {
+      await client.auth.admin.deleteUser(data.user.id);
+      throw credentialError;
+    }
 
     return Response.json({ user_id: data.user.id }, { headers: cors });
   } catch (error) {
