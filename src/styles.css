@@ -48,3 +48,5 @@ footer{display:flex;justify-content:space-between;color:#566174;font-size:9px;le
 .registration-steps{width:100%;display:grid;gap:12px;text-align:left;padding:17px;margin:0 0 18px;border:1px solid #2a3b52;border-radius:10px;background:#111a27;color:#aebbd0;font-size:11px;line-height:1.6}
 .registration-steps strong{color:#dce9fa;font-size:12px}
 .registration-steps b{color:#c2d9f7}
+
+.auth-success{width:100%;margin-top:13px;padding:12px;border-radius:8px;background:#19372f;border:1px solid #285846;color:#a6e5c7;font-size:11px;line-height:1.6;text-align:left}
