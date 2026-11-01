@@ -149,12 +149,12 @@ create or replace function public.is_approved_user()
 returns boolean
 language sql stable security definer
 set search_path = public
-as $
+as $$
   select exists (
     select 1 from public.profiles
     where id = auth.uid() and is_approved = true
   );
-$;
+$$;
 
 create or replace function public.has_admin_role(required_roles public.admin_role[])
 returns boolean
@@ -320,7 +320,7 @@ create or replace function public.guard_closed_salary_payment()
 returns trigger
 language plpgsql
 set search_path = public
-as $
+as $$
 begin
   -- The financial snapshot is immutable in every period, not only after closure.
   if (
