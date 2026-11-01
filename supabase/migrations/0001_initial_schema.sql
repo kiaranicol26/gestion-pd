@@ -14,6 +14,9 @@ create table public.profiles (
   discord_id text unique not null,
   discord_username text,
   avatar_url text,
+  is_approved boolean not null default false,
+  approved_at timestamptz,
+  approved_by uuid references public.profiles(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -142,6 +145,17 @@ as $$
   limit 1;
 $$;
 
+create or replace function public.is_approved_user()
+returns boolean
+language sql stable security definer
+set search_path = public
+as $
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and is_approved = true
+  );
+$;
+
 create or replace function public.has_admin_role(required_roles public.admin_role[])
 returns boolean
 language sql stable security definer
@@ -175,7 +189,7 @@ using (public.has_admin_role(array['owner']::public.admin_role[]))
 with check (public.has_admin_role(array['owner']::public.admin_role[]));
 
 create policy "members_read_authenticated" on public.pd_members
-for select to authenticated using (true);
+for select to authenticated using (public.is_approved_user());
 
 create policy "members_edit_authorized" on public.pd_members
 for update to authenticated
@@ -191,7 +205,7 @@ for delete to authenticated
 using (public.has_admin_role(array['owner','admin']::public.admin_role[]));
 
 create policy "training_read_authenticated" on public.training_catalog
-for select to authenticated using (true);
+for select to authenticated using (public.is_approved_user());
 
 create policy "training_manage_admin" on public.training_catalog
 for all to authenticated
@@ -199,7 +213,7 @@ using (public.has_admin_role(array['owner','admin']::public.admin_role[]))
 with check (public.has_admin_role(array['owner','admin']::public.admin_role[]));
 
 create policy "member_trainings_read_authenticated" on public.member_trainings
-for select to authenticated using (true);
+for select to authenticated using (public.is_approved_user());
 
 create policy "member_trainings_edit" on public.member_trainings
 for all to authenticated
@@ -207,7 +221,7 @@ using (public.has_admin_role(array['owner','admin','editor']::public.admin_role[
 with check (public.has_admin_role(array['owner','admin','editor']::public.admin_role[]));
 
 create policy "salary_periods_read_authenticated" on public.salary_periods
-for select to authenticated using (true);
+for select to authenticated using (public.is_approved_user());
 
 create policy "salary_periods_create_admin" on public.salary_periods
 for insert to authenticated
@@ -219,7 +233,7 @@ using (public.has_admin_role(array['owner','admin']::public.admin_role[]))
 with check (public.has_admin_role(array['owner','admin']::public.admin_role[]));
 
 create policy "salary_payments_read_authenticated" on public.salary_payments
-for select to authenticated using (true);
+for select to authenticated using (public.is_approved_user());
 
 create policy "salary_payments_create_admin" on public.salary_payments
 for insert to authenticated
@@ -303,3 +317,110 @@ for each row execute procedure public.set_updated_at();
 
 create trigger pd_members_set_updated_at before update on public.pd_members
 for each row execute procedure public.set_updated_at();
+
+
+-- A closed period freezes the financial snapshot. Administrators may still
+-- change only the payment status and its audit fields after closure.
+create or replace function public.guard_closed_salary_payment()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  current_period_status public.salary_period_status;
+begin
+  select status into current_period_status
+  from public.salary_periods
+  where id = old.period_id;
+
+  if current_period_status = 'closed' and (
+    new.period_id is distinct from old.period_id or
+    new.member_id is distinct from old.member_id or
+    new.member_name_snapshot is distinct from old.member_name_snapshot or
+    new.rank_snapshot is distinct from old.rank_snapshot or
+    new.base_pay_snapshot is distinct from old.base_pay_snapshot or
+    new.division_1_snapshot is distinct from old.division_1_snapshot or
+    new.division_2_snapshot is distinct from old.division_2_snapshot or
+    new.instructor_snapshot is distinct from old.instructor_snapshot or
+    new.division_1_bonus is distinct from old.division_1_bonus or
+    new.division_2_bonus is distinct from old.division_2_bonus or
+    new.instructor_bonus is distinct from old.instructor_bonus
+  ) then
+    raise exception 'A closed salary period cannot have its financial snapshot modified';
+  end if;
+
+  if new.payment_status = 'paid' and old.payment_status <> 'paid' then
+    new.paid_at = coalesce(new.paid_at, now());
+    new.paid_by = coalesce(new.paid_by, auth.uid());
+  elsif new.payment_status = 'unpaid' then
+    new.paid_at = null;
+    new.paid_by = null;
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger salary_payment_guard
+before update on public.salary_payments
+for each row execute procedure public.guard_closed_salary_payment();
+
+create or replace function public.create_salary_period(
+  p_name text,
+  p_starts_on date default null,
+  p_ends_on date default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  new_period_id uuid;
+begin
+  if not public.has_admin_role(array['owner','admin']::public.admin_role[]) then
+    raise exception 'Insufficient permissions to create a salary period';
+  end if;
+
+  insert into public.salary_periods (name, starts_on, ends_on, created_by)
+  values (p_name, p_starts_on, p_ends_on, auth.uid())
+  returning id into new_period_id;
+
+  insert into public.salary_payments (
+    period_id, member_id, member_name_snapshot, rank_snapshot,
+    base_pay_snapshot, division_1_snapshot, division_2_snapshot,
+    instructor_snapshot, division_1_bonus, division_2_bonus, instructor_bonus
+  )
+  select
+    new_period_id, m.id, m.full_name, m.rank_code,
+    m.base_pay, m.division_1, m.division_2, m.is_instructor, 10, 10, 10
+  from public.pd_members m
+  where m.status = 'active';
+
+  return new_period_id;
+end;
+$$;
+
+create or replace function public.close_salary_period(p_period_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.has_admin_role(array['owner','admin']::public.admin_role[]) then
+    raise exception 'Insufficient permissions to close a salary period';
+  end if;
+
+  update public.salary_periods
+  set status = 'closed', closed_by = auth.uid(), closed_at = now()
+  where id = p_period_id and status = 'open';
+
+  if not found then
+    raise exception 'Salary period does not exist or is already closed';
+  end if;
+end;
+$$;
+
+grant execute on function public.create_salary_period(text, date, date) to authenticated;
+grant execute on function public.close_salary_period(uuid) to authenticated;
