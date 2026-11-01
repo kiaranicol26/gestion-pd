@@ -28,6 +28,63 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
 });
 
+const RANKS = {
+  CMS: "Comisario",
+  INS: "Inspector",
+  CPT: "Capitán",
+  TTE: "Teniente",
+  SGT: "Sargento",
+  CBO: "Cabo",
+  OFC: "Oficial",
+  CDT: "Cadete",
+  ASP: "Aspirante",
+};
+const INSTRUCTOR_ROLE_NAME = "Equipo de instructores";
+const ROSTER_SYNC_INTERVAL_MS = 5 * 60 * 1000;
+
+function getDiscordRosterData(member) {
+  const nickname = member.displayName || member.user.globalName || member.user.username;
+  const rankMatch = nickname.match(/^\\s*\\[([A-Z]{3})\\]\\s*/i);
+  const rankCode = rankMatch?.[1]?.toUpperCase() ?? null;
+  const rankName = rankCode ? RANKS[rankCode] ?? null : null;
+  const cleanedName = nickname
+    .replace(/^\\s*\\[[A-Z]{3}\\]\\s*/i, "")
+    .replace(/\\s+#\\d+\\s*$/, "")
+    .replace(/_/g, " ")
+    .trim();
+  const instructor = member.roles.cache.some(
+    (role) => role.name.toLowerCase() === INSTRUCTOR_ROLE_NAME.toLowerCase(),
+  );
+
+  return {
+    discord_id: member.user.id,
+    full_name: cleanedName || member.user.globalName || member.user.username,
+    discord_nickname: nickname,
+    rank_code: rankName ? rankCode : null,
+    rank_name: rankName,
+    photo_url: member.displayAvatarURL({ extension: "png", size: 256 }),
+    discord_joined_at: member.joinedAt?.toISOString() ?? null,
+    is_instructor: instructor,
+  };
+}
+
+async function syncGuildMember(member) {
+  if (!member || member.user.bot) return;
+  const { error } = await supabase
+    .from("pd_members")
+    .upsert(getDiscordRosterData(member), { onConflict: "discord_id" });
+  if (error) throw error;
+}
+
+async function syncGuildRoster(guild) {
+  await guild.members.fetch();
+  const humans = [...guild.members.cache.values()].filter((member) => !member.user.bot);
+  for (const member of humans) {
+    await syncGuildMember(member);
+  }
+  console.log(`Roster synchronization complete: ${humans.length} human members processed.`);
+}
+
 const PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*-_";
 const makePassword = (length = 40) =>
   Array.from({ length }, () => PASSWORD_ALPHABET[randomInt(PASSWORD_ALPHABET.length)]).join("");
@@ -176,5 +233,5 @@ client.once(Events.ClientReady, async (readyClient) => {
   setInterval(pollRequests, 5000);
 });
 
-client.on(Events.Error, (error) => console.error("Discord client error:", error));
+client.on(Events.GuildMemberAdd, (member) => {\n  void syncGuildMember(member).catch((error) => console.error("Could not sync new guild member:", error));\n});\n\nclient.on(Events.GuildMemberUpdate, (_oldMember, newMember) => {\n  void syncGuildMember(newMember).catch((error) => console.error("Could not sync updated guild member:", error));\n});\n\nclient.on(Events.Error, (error) => console.error("Discord client error:", error));
 await client.login(process.env.DISCORD_BOT_TOKEN);
