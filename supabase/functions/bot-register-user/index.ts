@@ -31,11 +31,21 @@ Deno.serve(async (req) => {
 
     const pepper = Deno.env.get("LOGIN_PASSWORD_PEPPER");
     if (!pepper) throw new Error("LOGIN_PASSWORD_PEPPER is not configured");
-    const client = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const client = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+      auth: { persistSession: false },
+    });
+    const { data: existingProfile, error: lookupError } = await client
+      .from("profiles").select("id").eq("discord_id", discord_id).maybeSingle();
+    if (lookupError) throw lookupError;
+    if (existingProfile) {
+      return Response.json({ error: "Esta cuenta de Discord ya está registrada." }, { status: 409, headers: cors });
+    }
+
     const email = `discord-${discord_id}@auth.gestion-pd.invalid`;
+    const internalPassword = crypto.randomUUID() + crypto.randomUUID();
     const { data, error } = await client.auth.admin.createUser({
       email,
-      password,
+      password: internalPassword,
       email_confirm: true,
       user_metadata: { provider_id: discord_id, user_name: discord_username.trim(), discord_id },
     });
@@ -60,7 +70,7 @@ Deno.serve(async (req) => {
       throw credentialError;
     }
 
-    return Response.json({ user_id: data.user.id }, { headers: cors });
+    return Response.json({ user_id: data.user.id, created: true }, { headers: cors });
   } catch (error) {
     console.error("bot-register-user:", error);
     return Response.json({ error: "Account provisioning failed" }, { status: 500, headers: cors });
