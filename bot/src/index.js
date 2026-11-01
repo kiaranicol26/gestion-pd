@@ -44,12 +44,12 @@ const ROSTER_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 function getDiscordRosterData(member) {
   const nickname = member.displayName || member.user.globalName || member.user.username;
-  const rankMatch = nickname.match(/^\\s*\\[([A-Z]{3})\\]\\s*/i);
+  const rankMatch = nickname.match(/^\s*\[([A-Z]{3})\]\s*/i);
   const rankCode = rankMatch?.[1]?.toUpperCase() ?? null;
   const rankName = rankCode ? RANKS[rankCode] ?? null : null;
   const cleanedName = nickname
-    .replace(/^\\s*\\[[A-Z]{3}\\]\\s*/i, "")
-    .replace(/\\s+#\\d+\\s*$/, "")
+    .replace(/^\s*\[[A-Z]{3}\]\s*/i, "")
+    .replace(/\s+#\d+\s*$/, "")
     .replace(/_/g, " ")
     .trim();
   const instructor = member.roles.cache.some(
