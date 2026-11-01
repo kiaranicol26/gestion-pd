@@ -1,0 +1,5 @@
+[functions.resolve-password-login]
+verify_jwt = false
+
+[functions.bot-register-user]
+verify_jwt = false
