@@ -46,6 +46,7 @@ async function setRequestStatus(id, status, resultMessage) {
 
 async function processRequest(request, guild) {
   let provisionedUserId = null;
+  let passwordDelivered = false;
   try {
     const { data: claimed, error: claimError } = await supabase
       .from("registration_requests")
@@ -117,11 +118,12 @@ async function processRequest(request, guild) {
       ].join("\n"),
       allowedMentions: { parse: [] },
     });
+    passwordDelivered = true;
 
     await setRequestStatus(request.id, "completed", "Cuenta creada y contraseña enviada por MD.");
     console.log(`Registration completed for Discord ID ${discordId}`);
   } catch (error) {
-    if (provisionedUserId) {
+    if (provisionedUserId && !passwordDelivered) {
       const { error: cleanupError } = await supabase.auth.admin.deleteUser(provisionedUserId);
       if (cleanupError) console.error("Could not roll back undelivered account:", cleanupError);
     }
