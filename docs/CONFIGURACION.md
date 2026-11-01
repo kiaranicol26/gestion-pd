@@ -1,35 +1,89 @@
-# Configuración inicial de Gestión PD
+# Configuración de Gestión PD
 
-Esta guía se completa antes de habilitar usuarios reales.
+Esta guía describe la autenticación mediante solicitud web y entrega automática de contraseña por MD. No se utiliza Discord OAuth para iniciar sesión.
 
 ## 1. Supabase
+
 1. Crear un proyecto Supabase exclusivo para Gestión PD.
-2. En SQL Editor, ejecutar el archivo `supabase/migrations/0001_initial_schema.sql`.
-3. Copiar Project URL y Publishable/anon key a un archivo local `.env.local`.
-4. En Authentication > URL Configuration, agregar las URLs locales y de producción autorizadas.
+2. Ejecutar en SQL Editor, en este orden:
+   - `supabase/migrations/0001_initial_schema.sql`
+   - `supabase/migrations/0002_password_login.sql`
+   - `supabase/migrations/0003_registration_requests.sql`
+3. Copiar Project URL y Publishable key al archivo local `.env.local` del frontend.
 
 Variables del frontend:
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 
-No usar la service_role key en el frontend. Nunca subir secretos al repositorio.
+La Publishable key puede estar en el navegador. **Nunca** colocar `service_role`, el token del bot ni secretos en React, `.env.local` del frontend o GitHub.
 
-## 2. Discord OAuth2
-1. Crear una aplicación en Discord Developer Portal.
-2. En OAuth2, configurar el callback URL que indique Supabase en Authentication > Providers > Discord.
-3. Copiar Client ID y Client Secret a la configuración del proveedor Discord en Supabase.
-4. Habilitar únicamente los scopes necesarios. El inicio de sesión usa identify y email; la verificación de pertenencia al servidor se realizará del lado servidor con el bot.
+## 2. Edge Functions
 
-## 3. Bot y validación de servidor
-Para comprobar que una cuenta pertenece al servidor de Discord, la integración de servidor debe validar el Discord user ID contra el Guild ID usando un bot con permisos mínimos. El token del bot se guardará como secreto de Edge Function/entorno del servidor, nunca en React ni en GitHub.
+Desplegar desde la raíz del repositorio con Supabase CLI:
 
-## 4. Primer administrador
-El primer administrador se provisionará mediante un proceso de bootstrap de un solo uso, ejecutado del lado servidor. El secreto inicial se generará al desplegar ese proceso y no se guardará en el repositorio. No reutilizar tokens publicados en conversaciones.
+```bash
+supabase functions deploy request-registration
+supabase functions deploy resolve-password-login
+supabase functions deploy bot-register-user
+```
 
-## 5. Reglas operativas
-- Todo acceso requiere una contraseña emitida por el bot después de verificar la identidad de Discord.
-- El perfil queda sin aprobar por defecto hasta completar la verificación del servidor y el flujo de registro.
-- Los roles se asignan desde Gestión de administradores.
-- Los períodos salariales se crean manualmente.
-- Al crear un período, se captura el salario vigente de cada agente activo.
-- Al cerrar un período, la fotografía financiera queda congelada; solo puede cambiar el estado de pago y sus datos de auditoría.
+Configurar estos secretos en Supabase Functions:
+- `LOGIN_PASSWORD_PEPPER`: secreto aleatorio largo y permanente usado para calcular el HMAC de las contraseñas.
+- `DISCORD_BOT_API_SECRET`: secreto aleatorio compartido exclusivamente entre el bot y la función `bot-register-user`.
+
+Supabase proporciona `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` al entorno de las Edge Functions. Verificarlo en la configuración del proyecto; nunca exponer la service role key en el frontend.
+
+Las funciones públicas `request-registration` y `resolve-password-login` no requieren JWT de usuario. `bot-register-user` está protegida por el encabezado secreto que solo conoce el bot.
+
+## 3. Bot de Discord
+
+El bot utiliza la aplicación existente de Discord:
+
+1. En Discord Developer Portal, agregar/habilitar el usuario Bot de la aplicación.
+2. En Bot, activar **Server Members Intent** (Privileged Gateway Intents).
+3. Invitar el bot al servidor correcto con el scope `bot`. No necesita permisos administrativos.
+4. Copiar el token del bot y el ID del servidor.
+5. En la carpeta `bot`, copiar `.env.example` como `.env` y completar:
+   - `DISCORD_BOT_TOKEN`
+   - `DISCORD_GUILD_ID`
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `DISCORD_BOT_API_SECRET` (el mismo valor configurado en Supabase)
+
+Instalar y ejecutar el bot:
+
+```bash
+cd bot
+npm install
+npm start
+```
+
+El bot debe permanecer ejecutándose en un servidor/host permanente. Si se cierra, las solicitudes quedan pendientes y no se envían MD.
+
+## 4. Flujo de registro
+
+1. La persona abre **Registrarse** en la web e ingresa su nombre de usuario original de Discord.
+2. La Edge Function agrega una solicitud a una cola privada.
+3. El bot busca una coincidencia exacta, sin usar apodos ni nombres visibles, dentro del servidor configurado.
+4. El bot obtiene el ID inmutable de Discord y comprueba que no exista una cuenta vinculada.
+5. Supabase crea la cuenta interna y guarda un HMAC de la contraseña definitiva.
+6. El bot envía la contraseña por MD. Si el MD no se puede enviar, el bot elimina la cuenta recién creada.
+7. La persona inicia sesión ingresando únicamente esa contraseña.
+
+El nombre de Discord se usa para localizar al miembro; la vinculación y la unicidad se basan en el ID numérico de Discord. Si el usuario cambia su nombre, la vinculación no cambia.
+
+## 5. Seguridad y operación
+
+- Una cuenta de Discord solo puede registrarse una vez.
+- Las contraseñas no se guardan en texto plano; la tabla de credenciales está cerrada para usuarios normales.
+- La contraseña se entrega una sola vez por MD. El usuario debe guardarla de forma segura.
+- La cuenta no puede registrarse de nuevo si ya existe. La recuperación de contraseña debe implementarse como flujo separado antes de producción.
+- Si el usuario tiene los MD cerrados, debe habilitarlos para recibir el mensaje.
+- No compartir ni publicar el token del bot, la service role key, `LOGIN_PASSWORD_PEPPER` o `DISCORD_BOT_API_SECRET`.
+- Antes de habilitar usuarios reales, probar el flujo con una cuenta de prueba y revisar los registros de Edge Functions.
+
+## 6. Primer administrador y módulos
+
+El primer administrador se provisionará mediante un proceso de bootstrap de un solo uso, ejecutado del lado servidor. Los roles se asignan desde Gestión de administradores.
+
+Los períodos salariales se crean manualmente. Al crear un período se captura el salario vigente de cada agente activo. Al cerrar un período, la fotografía financiera queda congelada; solo puede cambiar el estado de pago y sus datos de auditoría.
