@@ -27,7 +27,7 @@ Para comprobar que una cuenta pertenece al servidor de Discord, la integración 
 El primer administrador se provisionará mediante un proceso de bootstrap de un solo uso, ejecutado del lado servidor. El secreto inicial se generará al desplegar ese proceso y no se guardará en el repositorio. No reutilizar tokens publicados en conversaciones.
 
 ## 5. Reglas operativas
-- Todo acceso requiere Discord OAuth.
+- Todo acceso requiere una contraseña emitida por el bot después de verificar la identidad de Discord.
 - El perfil queda sin aprobar por defecto hasta completar la verificación del servidor y el flujo de registro.
 - Los roles se asignan desde Gestión de administradores.
 - Los períodos salariales se crean manualmente.
