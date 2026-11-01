@@ -22,6 +22,10 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [authError, setAuthError] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showRegistration, setShowRegistration] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
 
   useEffect(() => {
     if (!supabase) {
@@ -39,14 +43,27 @@ export default function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  async function signInWithDiscord() {
-    if (!supabase) return;
+  async function signInWithPassword() {
+    if (!supabase || !password.trim()) return;
     setAuthError("");
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "discord",
-      options: { redirectTo: window.location.origin, scopes: "identify email guilds" },
-    });
-    if (error) setAuthError(error.message);
+    setAuthLoading(true);
+    try {
+      // The Edge Function resolves the password to its internal Auth identity.
+      const { data, error } = await supabase.functions.invoke("resolve-password-login", {
+        body: { password },
+      });
+      if (error) throw error;
+      if (!data?.email) throw new Error("No se pudo validar la contraseña.");
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password,
+      });
+      if (loginError) throw loginError;
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "No se pudo iniciar sesión.");
+    } finally {
+      setAuthLoading(false);
+    }
   }
 
   async function signOut() {
@@ -81,10 +98,36 @@ export default function App() {
           <div className="brand-mark auth-mark"><Shield size={25} /></div>
           <div className="eyebrow">POLICE DEPARTMENT MANAGEMENT</div>
           <h1>GESTIÓN PD</h1>
-          <p>Ingresá con tu cuenta de Discord para acceder a la plataforma. Los permisos se asignan desde administración.</p>
-          <button className="discord-button" onClick={signInWithDiscord}><MessageCircle size={18} /> Continuar con Discord <LogIn size={17} /></button>
-          {authError && <div className="auth-error">{authError}</div>}
-          <div className="auth-notice"><LockKeyhole size={15} /> Acceso exclusivo mediante Discord</div>
+          {showRegistration ? (
+            <>
+              <p>Para crear tu acceso, solicitá tu contraseña definitiva al bot oficial desde nuestro servidor de Discord.</p>
+              <div className="registration-steps">
+                <strong>¿Cómo registrarte?</strong>
+                <span>1. Entrá al servidor oficial de Discord.</span>
+                <span>2. Ejecutá el comando <b>/registrarse</b>.</span>
+                <span>3. El bot verificará tu cuenta y te enviará tu contraseña por MD.</span>
+                <span>4. Volvé aquí e ingresá esa contraseña.</span>
+              </div>
+              <button className="discord-button" onClick={() => setShowRegistration(false)}>Volver a iniciar sesión</button>
+            </>
+          ) : (
+            <>
+              <p>Ingresá con la contraseña definitiva que recibiste por mensaje privado del bot de Gestión PD.</p>
+              <label className="auth-label" htmlFor="access-password">Contraseña de acceso</label>
+              <div className="password-field">
+                <input id="access-password" type={showPassword ? "text" : "password"} value={password}
+                  onChange={(event) => setPassword(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void signInWithPassword(); }}
+                  placeholder="Ingresá tu contraseña" autoComplete="current-password" />
+                <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}>{showPassword ? "Ocultar" : "Ver"}</button>
+              </div>
+              <button className="discord-button" onClick={() => void signInWithPassword()} disabled={!password.trim() || authLoading}>
+                <LockKeyhole size={17} /> {authLoading ? "Verificando..." : "Iniciar sesión"} <LogIn size={17} />
+              </button>
+              {authError && <div className="auth-error">{authError}</div>}
+              <button className="register-link" onClick={() => { setAuthError(""); setShowRegistration(true); }}>Registrarse</button>
+            </>
+          )}
+          <div className="auth-notice"><LockKeyhole size={15} /> Acceso protegido mediante contraseña</div>
           <span className="version">ACCESO PROTEGIDO · GESTIÓN PD</span>
         </div>
       </div>
