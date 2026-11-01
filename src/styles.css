@@ -34,3 +34,17 @@ footer{display:flex;justify-content:space-between;color:#566174;font-size:9px;le
 .user-area{display:flex;align-items:center;gap:13px;text-transform:none;letter-spacing:0;font-size:11px}
 .icon-button{width:34px;height:34px;border:1px solid #2c3748;border-radius:8px;background:#171f2c;color:#aab9ce;display:grid;place-items:center;cursor:pointer}
 .icon-button:hover{color:#fff;background:#26354a}
+
+
+/* Password-only authentication */
+.auth-label{width:100%;text-align:left;color:#aebbd0;font-size:11px;font-weight:600;margin:2px 0 8px}
+.password-field{width:100%;display:flex;align-items:center;border:1px solid #34445a;background:#0f151f;border-radius:9px;margin-bottom:13px;overflow:hidden}
+.password-field:focus-within{border-color:#83aee5;box-shadow:0 0 0 3px #83aee51c}
+.password-field input{min-width:0;flex:1;background:transparent;border:0;outline:0;color:#edf0f6;padding:13px 14px;font:inherit;font-size:13px}
+.password-field input::placeholder{color:#65738a}
+.password-toggle{border:0;background:transparent;color:#9db9dc;padding:0 13px;font-size:10px;cursor:pointer}
+.discord-button:disabled{opacity:.55;cursor:not-allowed}
+.register-link{margin-top:17px;border:0;background:transparent;color:#a9c9f7;font-size:12px;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
+.registration-steps{width:100%;display:grid;gap:12px;text-align:left;padding:17px;margin:0 0 18px;border:1px solid #2a3b52;border-radius:10px;background:#111a27;color:#aebbd0;font-size:11px;line-height:1.6}
+.registration-steps strong{color:#dce9fa;font-size:12px}
+.registration-steps b{color:#c2d9f7}
