@@ -165,11 +165,6 @@ create policy "profiles_read_self_or_admin" on public.profiles
 for select to authenticated
 using (id = auth.uid() or public.has_admin_role(array['owner','admin']::public.admin_role[]));
 
-create policy "profiles_update_self" on public.profiles
-for update to authenticated
-using (id = auth.uid())
-with check (id = auth.uid());
-
 create policy "admins_read_admins" on public.administrators
 for select to authenticated
 using (user_id = auth.uid() or public.has_admin_role(array['owner','admin']::public.admin_role[]));
@@ -250,3 +245,61 @@ for insert to authenticated with check (actor_id = auth.uid());
 -- Do not grant anonymous access. Public registration will be mediated by a
 -- server-side Edge Function after Discord identity and one-time code validation.
 revoke all on all tables in schema public from anon;
+
+
+-- Create a profile automatically after a Discord OAuth sign-in.
+-- Discord's provider_id is the stable external account identifier.
+create or replace function public.handle_new_discord_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  external_discord_id text;
+begin
+  external_discord_id := coalesce(
+    new.raw_user_meta_data ->> 'provider_id',
+    new.raw_user_meta_data ->> 'sub'
+  );
+
+  if external_discord_id is null or external_discord_id = '' then
+    raise exception 'Discord provider ID is missing from OAuth user metadata';
+  end if;
+
+  insert into public.profiles (id, discord_id, discord_username, avatar_url)
+  values (
+    new.id,
+    external_discord_id,
+    coalesce(new.raw_user_meta_data ->> 'user_name', new.raw_user_meta_data ->> 'full_name'),
+    new.raw_user_meta_data ->> 'avatar_url'
+  )
+  on conflict (id) do update set
+    discord_id = excluded.discord_id,
+    discord_username = excluded.discord_username,
+    avatar_url = excluded.avatar_url,
+    updated_at = now();
+
+  return new;
+end;
+$$;
+
+create trigger on_auth_user_created_profile
+after insert on auth.users
+for each row execute procedure public.handle_new_discord_user();
+
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+create trigger profiles_set_updated_at before update on public.profiles
+for each row execute procedure public.set_updated_at();
+
+create trigger pd_members_set_updated_at before update on public.pd_members
+for each row execute procedure public.set_updated_at();
