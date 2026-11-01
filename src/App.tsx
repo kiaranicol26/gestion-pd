@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Activity, BadgeDollarSign, BookOpenCheck, ChevronDown, ClipboardList,
-  LayoutDashboard, LockKeyhole, LogIn, Menu, Settings, Shield, Users,
+  LayoutDashboard, LockKeyhole, LogIn, LogOut, Menu, MessageCircle, Settings, Shield, Users,
 } from "lucide-react";
+import type { Session } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
 type Section = "dashboard" | "registro" | "salarios" | "capacitaciones" | "administracion";
@@ -18,18 +19,80 @@ const navigation = [
 export default function App() {
   const [section, setSection] = useState<Section>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [authError, setAuthError] = useState("");
+
+  useEffect(() => {
+    if (!supabase) {
+      setCheckingSession(false);
+      return;
+    }
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setCheckingSession(false);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setCheckingSession(false);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
 
   async function signInWithDiscord() {
     if (!supabase) return;
-    const redirectTo = window.location.origin;
+    setAuthError("");
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "discord",
-      options: { redirectTo, scopes: "identify email guilds" },
+      options: { redirectTo: window.location.origin, scopes: "identify email guilds" },
     });
-    if (error) console.error("No se pudo iniciar sesión con Discord:", error.message);
+    if (error) setAuthError(error.message);
+  }
+
+  async function signOut() {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setSection("dashboard");
+  }
+
+  if (!isSupabaseConfigured) {
+    return (
+      <div className="auth-screen">
+        <div className="auth-card">
+          <div className="brand-mark auth-mark"><Shield size={25} /></div>
+          <div className="eyebrow">POLICE DEPARTMENT MANAGEMENT</div>
+          <h1>GESTIÓN PD</h1>
+          <p>La plataforma está preparada. Para habilitar el acceso seguro, primero hay que conectar el proyecto Supabase y configurar Discord OAuth2.</p>
+          <div className="auth-notice"><LockKeyhole size={16} /> Autenticación todavía no configurada</div>
+          <span className="version">VERSIÓN 0.1.0 · ENTORNO INICIAL</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (checkingSession) {
+    return <div className="auth-screen"><div className="auth-card"><div className="spinner" /><p>Verificando sesión segura…</p></div></div>;
+  }
+
+  if (!session) {
+    return (
+      <div className="auth-screen">
+        <div className="auth-card">
+          <div className="brand-mark auth-mark"><Shield size={25} /></div>
+          <div className="eyebrow">POLICE DEPARTMENT MANAGEMENT</div>
+          <h1>GESTIÓN PD</h1>
+          <p>Ingresá con tu cuenta de Discord para acceder a la plataforma. Los permisos se asignan desde administración.</p>
+          <button className="discord-button" onClick={signInWithDiscord}><MessageCircle size={18} /> Continuar con Discord <LogIn size={17} /></button>
+          {authError && <div className="auth-error">{authError}</div>}
+          <div className="auth-notice"><LockKeyhole size={15} /> Acceso exclusivo mediante Discord</div>
+          <span className="version">ACCESO PROTEGIDO · GESTIÓN PD</span>
+        </div>
+      </div>
+    );
   }
 
   const active = navigation.find((item) => item.id === section) ?? navigation[0];
+  const displayName = session.user.user_metadata?.full_name ?? session.user.user_metadata?.name ?? session.user.email ?? "Usuario";
 
   return (
     <div className="app-shell">
@@ -49,9 +112,7 @@ export default function App() {
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="connection"><span className={isSupabaseConfigured ? "dot online" : "dot"} />
-            {isSupabaseConfigured ? "Configuración Supabase detectada" : "Pendiente de conectar Supabase"}
-          </div>
+          <div className="connection"><span className="dot online" /> Sesión Discord activa</div>
           <span className="version">GESTIÓN PD · v0.1.0</span>
         </div>
       </aside>
@@ -60,7 +121,7 @@ export default function App() {
         <header className="topbar">
           <button className="icon-button mobile-menu" onClick={() => setMenuOpen(!menuOpen)} aria-label="Abrir menú"><Menu /></button>
           <div className="breadcrumb">Gestión PD <span>/</span> {active.label}</div>
-          <div className="topbar-right"><span className="environment"><span /> ENTORNO DE DESARROLLO</span></div>
+          <div className="topbar-right user-area"><span>{displayName}</span><button className="icon-button" onClick={signOut} aria-label="Cerrar sesión" title="Cerrar sesión"><LogOut size={17}/></button></div>
         </header>
 
         <section className="page-content">
@@ -70,29 +131,29 @@ export default function App() {
               <h1>{section === "dashboard" ? "Centro de operaciones" : active.label}</h1>
               <p className="subtitle">Administración centralizada de agentes, instructores y salarios.</p>
             </div>
-            <div className="secure-label"><LockKeyhole size={15} /> Acceso protegido por Discord</div>
+            <div className="secure-label"><LockKeyhole size={15} /> Sesión autenticada con Discord</div>
           </div>
 
           {section === "dashboard" ? (
             <>
               <div className="stat-grid">
-                <article className="stat-card"><div className="stat-icon"><Users /></div><span>AGENTES REGISTRADOS</span><strong>—</strong><small>Se mostrará al conectar la base de datos</small></article>
+                <article className="stat-card"><div className="stat-icon"><Users /></div><span>AGENTES REGISTRADOS</span><strong>—</strong><small>Se mostrará al conectar los datos</small></article>
                 <article className="stat-card"><div className="stat-icon"><BadgeDollarSign /></div><span>PERÍODO SALARIAL</span><strong>—</strong><small>Los períodos se crean manualmente</small></article>
                 <article className="stat-card"><div className="stat-icon"><BookOpenCheck /></div><span>CAPACITACIONES</span><strong>4</strong><small>M4 · EDC · MARY · AIR (iniciales)</small></article>
               </div>
               <div className="content-card setup-card">
                 <div className="setup-icon"><ClipboardList size={22} /></div>
-                <div className="setup-copy"><h2>La plataforma ya tiene su estructura inicial</h2>
-                  <p>El siguiente paso es conectar Supabase, configurar Discord OAuth2 y aplicar las migraciones de seguridad antes de habilitar el acceso real.</p>
-                  <div className="setup-status"><span className={isSupabaseConfigured ? "dot online" : "dot"} /> {isSupabaseConfigured ? "Variables de Supabase configuradas" : "Esperando credenciales de Supabase"}</div>
+                <div className="setup-copy"><h2>Bienvenido a Gestión PD</h2>
+                  <p>La estructura inicial está creada. Estamos preparando la base de datos, los permisos y los módulos operativos.</p>
+                  <div className="setup-status"><span className="dot online" /> Discord conectado · Datos todavía en preparación</div>
                 </div>
               </div>
               <div className="content-card checklist">
-                <h2>Próximas etapas</h2>
+                <h2>Plan de desarrollo</h2>
                 <div><span className="step-number done">01</span><span>Crear repositorio y estructura de aplicación</span><b>LISTO</b></div>
-                <div><span className="step-number">02</span><span>Crear base de datos y políticas de acceso</span><b>PENDIENTE</b></div>
-                <div><span className="step-number">03</span><span>Configurar inicio de sesión con Discord</span><b>PENDIENTE</b></div>
-                <div><span className="step-number">04</span><span>Desarrollar Registro PD y salarios</span><b>PENDIENTE</b></div>
+                <div><span className="step-number">02</span><span>Configurar Supabase y políticas de seguridad</span><b>PENDIENTE</b></div>
+                <div><span className="step-number">03</span><span>Configurar Discord OAuth2 y verificación de servidor</span><b>PENDIENTE</b></div>
+                <div><span className="step-number">04</span><span>Desarrollar Registro PD, salarios y administración</span><b>PENDIENTE</b></div>
               </div>
             </>
           ) : (
@@ -107,10 +168,6 @@ export default function App() {
           <footer><span>GESTIÓN PD</span><span>Plataforma independiente · {new Date().getFullYear()}</span></footer>
         </section>
       </main>
-
-      {!isSupabaseConfigured && (
-        <div className="dev-banner"><LockKeyhole size={15} /> Vista preliminar: autenticación y datos todavía no están habilitados.</div>
-      )}
     </div>
   );
 }
