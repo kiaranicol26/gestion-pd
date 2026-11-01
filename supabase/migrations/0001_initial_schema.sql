@@ -223,16 +223,8 @@ with check (public.has_admin_role(array['owner','admin','editor']::public.admin_
 create policy "salary_periods_read_authenticated" on public.salary_periods
 for select to authenticated using (public.is_approved_user());
 
-create policy "salary_periods_create_admin" on public.salary_periods
-for insert to authenticated
-with check (public.has_admin_role(array['owner','admin']::public.admin_role[]));
-
 create policy "salary_payments_read_authenticated" on public.salary_payments
 for select to authenticated using (public.is_approved_user());
-
-create policy "salary_payments_create_admin" on public.salary_payments
-for insert to authenticated
-with check (public.has_admin_role(array['owner','admin']::public.admin_role[]));
 
 create policy "salary_payments_update_admin" on public.salary_payments
 for update to authenticated
@@ -248,8 +240,12 @@ create policy "audit_logs_read_admin" on public.audit_logs
 for select to authenticated
 using (public.has_admin_role(array['owner','admin']::public.admin_role[]));
 
-create policy "audit_logs_insert_authenticated" on public.audit_logs
-for insert to authenticated with check (actor_id = auth.uid());
+create policy "audit_logs_insert_admin" on public.audit_logs
+for insert to authenticated
+with check (
+  actor_id = auth.uid() and
+  public.has_admin_role(array['owner','admin','editor']::public.admin_role[])
+);
 
 -- Do not grant anonymous access. Public registration will be mediated by a
 -- server-side Edge Function after Discord identity and one-time code validation.
