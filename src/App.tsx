@@ -26,6 +26,9 @@ export default function App() {
   const [showPassword, setShowPassword] = useState(false);
   const [showRegistration, setShowRegistration] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
+  const [discordUsername, setDiscordUsername] = useState("");
+  const [registrationLoading, setRegistrationLoading] = useState(false);
+  const [registrationSent, setRegistrationSent] = useState(false);
 
   useEffect(() => {
     if (!supabase) {
@@ -53,16 +56,34 @@ export default function App() {
         body: { password },
       });
       if (error) throw error;
-      if (!data?.email) throw new Error("No se pudo validar la contraseña.");
-      const { error: loginError } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password,
+      if (!data?.token_hash) throw new Error("No se pudo validar la contraseña.");
+      const { error: loginError } = await supabase.auth.verifyOtp({
+        token_hash: data.token_hash,
+        type: "magiclink",
       });
       if (loginError) throw loginError;
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "No se pudo iniciar sesión.");
     } finally {
       setAuthLoading(false);
+    }
+  }
+
+  async function requestRegistration() {
+    if (!supabase || !discordUsername.trim()) return;
+    setAuthError("");
+    setRegistrationSent(false);
+    setRegistrationLoading(true);
+    try {
+      const { error } = await supabase.functions.invoke("request-registration", {
+        body: { username: discordUsername.trim() },
+      });
+      if (error) throw error;
+      setRegistrationSent(true);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "No se pudo enviar la solicitud.");
+    } finally {
+      setRegistrationLoading(false);
     }
   }
 
@@ -100,15 +121,20 @@ export default function App() {
           <h1>GESTIÓN PD</h1>
           {showRegistration ? (
             <>
-              <p>Para crear tu acceso, solicitá tu contraseña definitiva al bot oficial desde nuestro servidor de Discord.</p>
-              <div className="registration-steps">
-                <strong>¿Cómo registrarte?</strong>
-                <span>1. Entrá al servidor oficial de Discord.</span>
-                <span>2. Ejecutá el comando <b>/registrarse</b>.</span>
-                <span>3. El bot verificará tu cuenta y te enviará tu contraseña por MD.</span>
-                <span>4. Volvé aquí e ingresá esa contraseña.</span>
+              <p>Ingresá tu nombre de usuario original de Discord. El bot localizará tu cuenta en el servidor y te enviará una contraseña definitiva por MD.</p>
+              <label className="auth-label" htmlFor="discord-username">Usuario de Discord</label>
+              <div className="password-field">
+                <input id="discord-username" type="text" value={discordUsername}
+                  onChange={(event) => { setDiscordUsername(event.target.value); setRegistrationSent(false); }}
+                  onKeyDown={(event) => { if (event.key === "Enter") void requestRegistration(); }}
+                  placeholder="Ejemplo: pokaim" autoComplete="username" maxLength={32} />
               </div>
-              <button className="discord-button" onClick={() => setShowRegistration(false)}>Volver a iniciar sesión</button>
+              <button className="discord-button" onClick={() => void requestRegistration()} disabled={discordUsername.trim().length < 2 || registrationLoading}>
+                <MessageCircle size={17} /> {registrationLoading ? "Enviando solicitud..." : "Solicitar código"}
+              </button>
+              {registrationSent && <div className="auth-success">Solicitud recibida. Si encontramos ese usuario en el servidor, el bot le enviará un mensaje privado. Asegurate de permitir MD.</div>}
+              {authError && <div className="auth-error">{authError}</div>}
+              <button className="register-link" onClick={() => { setAuthError(""); setRegistrationSent(false); setShowRegistration(false); }}>Volver a iniciar sesión</button>
             </>
           ) : (
             <>
@@ -124,7 +150,7 @@ export default function App() {
                 <LockKeyhole size={17} /> {authLoading ? "Verificando..." : "Iniciar sesión"} <LogIn size={17} />
               </button>
               {authError && <div className="auth-error">{authError}</div>}
-              <button className="register-link" onClick={() => { setAuthError(""); setShowRegistration(true); }}>Registrarse</button>
+              <button className="register-link" onClick={() => { setAuthError(""); setRegistrationSent(false); setShowRegistration(true); }}>Registrarse</button>
             </>
           )}
           <div className="auth-notice"><LockKeyhole size={15} /> Acceso protegido mediante contraseña</div>
@@ -135,7 +161,7 @@ export default function App() {
   }
 
   const active = navigation.find((item) => item.id === section) ?? navigation[0];
-  const displayName = session.user.user_metadata?.full_name ?? session.user.user_metadata?.name ?? session.user.email ?? "Usuario";
+  const displayName = session.user.user_metadata?.user_name ?? session.user.user_metadata?.full_name ?? session.user.user_metadata?.name ?? "Usuario";
 
   return (
     <div className="app-shell">
