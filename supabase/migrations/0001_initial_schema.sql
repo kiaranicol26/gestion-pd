@@ -227,11 +227,6 @@ create policy "salary_periods_create_admin" on public.salary_periods
 for insert to authenticated
 with check (public.has_admin_role(array['owner','admin']::public.admin_role[]));
 
-create policy "salary_periods_update_admin" on public.salary_periods
-for update to authenticated
-using (public.has_admin_role(array['owner','admin']::public.admin_role[]))
-with check (public.has_admin_role(array['owner','admin']::public.admin_role[]));
-
 create policy "salary_payments_read_authenticated" on public.salary_payments
 for select to authenticated using (public.is_approved_user());
 
@@ -325,15 +320,10 @@ create or replace function public.guard_closed_salary_payment()
 returns trigger
 language plpgsql
 set search_path = public
-as $$
-declare
-  current_period_status public.salary_period_status;
+as $
 begin
-  select status into current_period_status
-  from public.salary_periods
-  where id = old.period_id;
-
-  if current_period_status = 'closed' and (
+  -- The financial snapshot is immutable in every period, not only after closure.
+  if (
     new.period_id is distinct from old.period_id or
     new.member_id is distinct from old.member_id or
     new.member_name_snapshot is distinct from old.member_name_snapshot or
@@ -344,15 +334,19 @@ begin
     new.instructor_snapshot is distinct from old.instructor_snapshot or
     new.division_1_bonus is distinct from old.division_1_bonus or
     new.division_2_bonus is distinct from old.division_2_bonus or
-    new.instructor_bonus is distinct from old.instructor_bonus
+    new.instructor_bonus is distinct from old.instructor_bonus or
+    new.created_at is distinct from old.created_at
   ) then
-    raise exception 'A closed salary period cannot have its financial snapshot modified';
+    raise exception 'A salary period snapshot cannot be modified';
   end if;
 
   if new.payment_status = 'paid' and old.payment_status <> 'paid' then
-    new.paid_at = coalesce(new.paid_at, now());
-    new.paid_by = coalesce(new.paid_by, auth.uid());
-  elsif new.payment_status = 'unpaid' then
+    new.paid_at = now();
+    new.paid_by = auth.uid();
+  elsif new.payment_status = 'paid' then
+    new.paid_at = old.paid_at;
+    new.paid_by = old.paid_by;
+  else
     new.paid_at = null;
     new.paid_by = null;
   end if;
@@ -422,5 +416,18 @@ begin
 end;
 $$;
 
+revoke all on function public.current_admin_role() from public, anon;
+revoke all on function public.is_approved_user() from public, anon;
+revoke all on function public.has_admin_role(public.admin_role[]) from public, anon;
+grant execute on function public.current_admin_role() to authenticated;
+grant execute on function public.is_approved_user() to authenticated;
+grant execute on function public.has_admin_role(public.admin_role[]) to authenticated;
+
+revoke all on function public.create_salary_period(text, date, date) from public, anon;
+revoke all on function public.close_salary_period(uuid) from public, anon;
 grant execute on function public.create_salary_period(text, date, date) to authenticated;
 grant execute on function public.close_salary_period(uuid) to authenticated;
+
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
