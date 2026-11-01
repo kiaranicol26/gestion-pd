@@ -15,3 +15,22 @@
 footer{display:flex;justify-content:space-between;color:#566174;font-size:9px;letter-spacing:.8px;padding:30px 2px 0}.dev-banner{position:fixed;bottom:15px;right:17px;background:#302719;border:1px solid #58462b;color:#e2c18a;border-radius:7px;padding:10px 13px;font-size:10px;display:flex;align-items:center;gap:8px;z-index:10}.mobile-menu{display:none}
 @media(max-width:850px){.sidebar{transform:translateX(-100%);transition:transform .2s}.sidebar.sidebar-open{transform:translateX(0)}.main-area{margin-left:0}.mobile-menu{display:grid;place-items:center;background:none;border:0;color:#dce4f0}.topbar{padding:0 20px;justify-content:flex-start;gap:14px}.topbar-right{margin-left:auto}.page-content{padding:32px 20px}.stat-grid{grid-template-columns:1fr}.welcome-row{align-items:flex-start;flex-direction:column}.secure-label{white-space:normal}}
 @media(max-width:480px){.environment{font-size:8px}.setup-card{padding:17px}.dev-banner{left:12px;right:12px;justify-content:center}footer{gap:12px;flex-wrap:wrap}}
+
+
+/* Authentication */
+.auth-screen{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 0%,#26344b 0%,transparent 48%),#0c0f15}
+.auth-card{width:min(100%,440px);border:1px solid #2a3547;border-radius:17px;background:linear-gradient(150deg,#192231,#111720);padding:42px 38px;display:flex;align-items:center;flex-direction:column;text-align:center;box-shadow:0 24px 90px #0006}
+.auth-mark{width:54px;height:54px;display:grid;place-items:center;border-radius:15px;margin-bottom:25px;color:#b6d3fa}
+.auth-card .eyebrow{justify-content:center;font-size:9px;margin-bottom:12px}
+.auth-card h1{font:800 27px Manrope,sans-serif;letter-spacing:2px;margin:0 0 12px}
+.auth-card p{font-size:12px;line-height:1.8;color:#98a5b8;margin:0 0 23px}
+.auth-notice{display:flex;align-items:center;gap:8px;color:#91a8c6;font-size:10px;margin-top:20px}
+.auth-card .version{margin-top:27px}
+.discord-button{width:100%;border:1px solid #6b91c3;border-radius:9px;background:#385b88;color:white;padding:13px 15px;display:flex;align-items:center;justify-content:center;gap:11px;font-size:13px;font-weight:700;cursor:pointer;transition:background .2s}
+.discord-button:hover{background:#456fa4}
+.auth-error{margin-top:14px;padding:10px;border-radius:7px;background:#40252b;color:#ffb8bd;font-size:11px;overflow-wrap:anywhere}
+.spinner{width:26px;height:26px;border:3px solid #35445a;border-top-color:#a8c9f4;border-radius:50%;animation:spin .8s linear infinite;margin:5px auto 15px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.user-area{display:flex;align-items:center;gap:13px;text-transform:none;letter-spacing:0;font-size:11px}
+.icon-button{width:34px;height:34px;border:1px solid #2c3748;border-radius:8px;background:#171f2c;color:#aab9ce;display:grid;place-items:center;cursor:pointer}
+.icon-button:hover{color:#fff;background:#26354a}
