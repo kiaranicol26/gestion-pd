@@ -79,7 +79,7 @@ export default function App() {
           <div className="brand-mark auth-mark"><Shield size={25} /></div>
           <div className="eyebrow">POLICE DEPARTMENT MANAGEMENT</div>
           <h1>GESTIÓN PD</h1>
-          <p>La plataforma está preparada. Para habilitar el acceso seguro, primero hay que conectar el proyecto Supabase y configurar Discord OAuth2.</p>
+          <p>La plataforma está preparada. Para habilitar el acceso seguro, primero hay que conectar el proyecto Supabase y desplegar las funciones de autenticación.</p>
           <div className="auth-notice"><LockKeyhole size={16} /> Autenticación todavía no configurada</div>
           <span className="version">VERSIÓN 0.1.0 · ENTORNO INICIAL</span>
         </div>
@@ -155,7 +155,7 @@ export default function App() {
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="connection"><span className="dot online" /> Sesión Discord activa</div>
+          <div className="connection"><span className="dot online" /> Sesión protegida activa</div>
           <span className="version">GESTIÓN PD · v0.1.0</span>
         </div>
       </aside>
@@ -174,7 +174,7 @@ export default function App() {
               <h1>{section === "dashboard" ? "Centro de operaciones" : active.label}</h1>
               <p className="subtitle">Administración centralizada de agentes, instructores y salarios.</p>
             </div>
-            <div className="secure-label"><LockKeyhole size={15} /> Sesión autenticada con Discord</div>
+            <div className="secure-label"><LockKeyhole size={15} /> Sesión autenticada</div>
           </div>
 
           {section === "dashboard" ? (
@@ -188,14 +188,14 @@ export default function App() {
                 <div className="setup-icon"><ClipboardList size={22} /></div>
                 <div className="setup-copy"><h2>Bienvenido a Gestión PD</h2>
                   <p>La estructura inicial está creada. Estamos preparando la base de datos, los permisos y los módulos operativos.</p>
-                  <div className="setup-status"><span className="dot online" /> Discord conectado · Datos todavía en preparación</div>
+                  <div className="setup-status"><span className="dot online" /> Autenticación protegida · Datos todavía en preparación</div>
                 </div>
               </div>
               <div className="content-card checklist">
                 <h2>Plan de desarrollo</h2>
                 <div><span className="step-number done">01</span><span>Crear repositorio y estructura de aplicación</span><b>LISTO</b></div>
                 <div><span className="step-number">02</span><span>Configurar Supabase y políticas de seguridad</span><b>PENDIENTE</b></div>
-                <div><span className="step-number">03</span><span>Configurar Discord OAuth2 y verificación de servidor</span><b>PENDIENTE</b></div>
+                <div><span className="step-number">03</span><span>Integrar bot de Discord y entrega de contraseñas</span><b>EN DESARROLLO</b></div>
                 <div><span className="step-number">04</span><span>Desarrollar Registro PD, salarios y administración</span><b>PENDIENTE</b></div>
               </div>
             </>
