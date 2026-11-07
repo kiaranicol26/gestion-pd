@@ -82,3 +82,5 @@ footer{display:flex;justify-content:space-between;color:#566174;font-size:9px;le
 .public-roster-footer{max-width:1120px;margin:0 auto;padding:20px 24px 30px;display:flex;justify-content:space-between;gap:15px;color:#637087;font-size:9px;letter-spacing:.8px}
 .public-roster-footer a{color:#9dbce3;text-decoration:none}
 @media(max-width:650px){.public-roster-main{padding:35px 17px}.public-member-grid{grid-template-columns:1fr}.public-roster-header{padding:0 17px}.public-readonly{font-size:8px}.public-roster-footer{padding-left:17px;padding-right:17px}}
+
+.auth-public-link{margin-top:14px;color:#a9c9f7;font-size:11px;text-decoration:none}.auth-public-link:hover{text-decoration:underline;text-underline-offset:4px}
