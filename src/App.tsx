@@ -16,130 +16,6 @@ const navigation = [
   { id: "administracion" as const, label: "Administración", icon: Settings },
 ];
 
-
-const PUBLIC_RANKS = [
-  { code: "CMS", name: "Comisario" },
-  { code: "INS", name: "Inspector" },
-  { code: "CPT", name: "Capitán" },
-  { code: "TTE", name: "Teniente" },
-  { code: "SGT", name: "Sargento" },
-  { code: "CBO", name: "Cabo" },
-  { code: "OFC", name: "Oficial" },
-  { code: "CDT", name: "Cadete" },
-  { code: "ASP", name: "Aspirante" },
-];
-
-type PublicMember = {
-  id: string;
-  full_name: string;
-  callsign: string | null;
-  rank_code: string | null;
-  rank_name: string | null;
-  photo_url: string | null;
-  division_1: boolean;
-  division_2: boolean;
-  division_3: boolean;
-  is_instructor: boolean;
-  discord_joined_at: string | null;
-};
-
-function PublicRoster() {
-  const [members, setMembers] = useState<PublicMember[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    let mounted = true;
-    async function loadRoster() {
-      if (!supabase) {
-        setError("El servicio de datos todavía no está configurado.");
-        setLoading(false);
-        return;
-      }
-      const { data, error: queryError } = await supabase
-        .from("public_pd_roster")
-        .select("id,full_name,callsign,rank_code,rank_name,photo_url,division_1,division_2,division_3,is_instructor,discord_joined_at");
-      if (!mounted) return;
-      if (queryError) setError("No se pudo cargar el Registro PD. Intentá nuevamente más tarde.");
-      else setMembers((data ?? []) as PublicMember[]);
-      setLoading(false);
-    }
-    void loadRoster();
-    return () => { mounted = false; };
-  }, []);
-
-  const rankGroups = PUBLIC_RANKS.map((rank) => ({
-    ...rank,
-    members: members
-      .filter((member) => member.rank_code === rank.code || member.rank_name === rank.name)
-      .sort((a, b) => a.full_name.localeCompare(b.full_name, "es")),
-  }));
-  const unranked = members
-    .filter((member) => !PUBLIC_RANKS.some((rank) => member.rank_code === rank.code || member.rank_name === rank.name))
-    .sort((a, b) => a.full_name.localeCompare(b.full_name, "es"));
-
-  function seniority(joinedAt: string | null) {
-    if (!joinedAt) return null;
-    const days = Math.max(0, Math.floor((Date.now() - new Date(joinedAt).getTime()) / 86400000));
-    return `${days} días en el departamento`;
-  }
-
-  function memberCard(member: PublicMember) {
-    const divisions = [
-      member.division_1 && "División 1",
-      member.division_2 && "División 2",
-      member.division_3 && "División 3",
-    ].filter((value): value is string => Boolean(value));
-    return (
-      <article className="public-member" key={member.id}>
-        {member.photo_url
-          ? <img className="public-avatar" src={member.photo_url} alt={`Foto de ${member.full_name}`} loading="lazy" />
-          : <div className="public-avatar public-avatar-fallback"><Users size={22} /></div>}
-        <div className="public-member-info">
-          <strong>{member.full_name}</strong>
-          <span className="public-callsign">{member.callsign ? `Placa #${member.callsign}` : "Placa no asignada"}</span>
-          <div className="public-tags">
-            {divisions.map((division) => <span className="public-tag" key={division}>{division}</span>)}
-            {member.is_instructor && <span className="public-tag instructor-tag">Instructor</span>}
-            {!divisions.length && !member.is_instructor && <span className="public-no-extra">Sin divisiones asignadas</span>}
-          </div>
-          {seniority(member.discord_joined_at) && <small>{seniority(member.discord_joined_at)}</small>}
-        </div>
-      </article>
-    );
-  }
-
-  return (
-    <div className="public-roster-page">
-      <header className="public-roster-header">
-        <a className="public-brand" href="/"><span className="brand-mark"><Shield size={22} /></span><span><strong>GESTIÓN PD</strong><small>WESTZONE ROLEPLAY</small></span></a>
-        <span className="public-readonly"><LockKeyhole size={14} /> REGISTRO PÚBLICO</span>
-      </header>
-      <main className="public-roster-main">
-        <div className="eyebrow"><Users size={14} /> DEPARTAMENTO DE POLICÍA</div>
-        <h1>Registro del personal</h1>
-        <p className="public-roster-subtitle">Directorio oficial de miembros activos, organizado por jerarquía.</p>
-        {loading ? <div className="public-state"><div className="spinner" /> Cargando personal...</div> : null}
-        {!loading && error ? <div className="public-state public-error">{error}</div> : null}
-        {!loading && !error && members.length === 0 ? <div className="public-state">Todavía no hay miembros activos registrados.</div> : null}
-        {!loading && !error && rankGroups.map((group) => group.members.length > 0 && (
-          <section className="public-rank-section" key={group.code}>
-            <div className="public-rank-heading"><h2>{group.name}</h2><span>{group.members.length} {group.members.length === 1 ? "miembro" : "miembros"}</span></div>
-            <div className="public-member-grid">{group.members.map(memberCard)}</div>
-          </section>
-        ))}
-        {!loading && !error && unranked.length > 0 && (
-          <section className="public-rank-section">
-            <div className="public-rank-heading"><h2>Sin rango asignado</h2><span>{unranked.length} {unranked.length === 1 ? "miembro" : "miembros"}</span></div>
-            <div className="public-member-grid">{unranked.map(memberCard)}</div>
-          </section>
-        )}
-      </main>
-      <footer className="public-roster-footer"><span>GESTIÓN PD · WESTZONE ROLEPLAY</span><a href="/">Acceso al sistema</a></footer>
-    </div>
-  );
-}
-
 export default function App() {
   const [section, setSection] = useState<Section>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -217,8 +93,6 @@ export default function App() {
     setSection("dashboard");
   }
 
-  if (window.location.pathname.replace(/\/+$/, "") === "/registro") return <PublicRoster />;
-
   if (!isSupabaseConfigured) {
     return (
       <div className="auth-screen">
@@ -280,7 +154,6 @@ export default function App() {
             </>
           )}
           <div className="auth-notice"><LockKeyhole size={15} /> Acceso protegido mediante contraseña</div>
-          <a className="auth-public-link" href="/registro">Consultar Registro PD público</a>
           <span className="version">ACCESO PROTEGIDO · GESTIÓN PD</span>
         </div>
       </div>
