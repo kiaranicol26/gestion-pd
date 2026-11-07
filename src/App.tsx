@@ -89,7 +89,7 @@ function PublicRoster() {
       member.division_1 && "División 1",
       member.division_2 && "División 2",
       member.division_3 && "División 3",
-    ].filter(Boolean);
+    ].filter((value): value is string => Boolean(value));
     return (
       <article className="public-member" key={member.id}>
         {member.photo_url
