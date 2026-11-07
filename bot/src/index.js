@@ -233,5 +233,13 @@ client.once(Events.ClientReady, async (readyClient) => {
   setInterval(pollRequests, 5000);
 });
 
-client.on(Events.GuildMemberAdd, (member) => {\n  void syncGuildMember(member).catch((error) => console.error("Could not sync new guild member:", error));\n});\n\nclient.on(Events.GuildMemberUpdate, (_oldMember, newMember) => {\n  void syncGuildMember(newMember).catch((error) => console.error("Could not sync updated guild member:", error));\n});\n\nclient.on(Events.Error, (error) => console.error("Discord client error:", error));
+client.on(Events.GuildMemberAdd, (member) => {
+  void syncGuildMember(member).catch((error) => console.error("Could not sync new guild member:", error));
+});
+
+client.on(Events.GuildMemberUpdate, (_oldMember, newMember) => {
+  void syncGuildMember(newMember).catch((error) => console.error("Could not sync updated guild member:", error));
+});
+
+client.on(Events.Error, (error) => console.error("Discord client error:", error));
 await client.login(process.env.DISCORD_BOT_TOKEN);
