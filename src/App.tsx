@@ -278,6 +278,7 @@ export default function App() {
             </>
           )}
           <div className="auth-notice"><LockKeyhole size={15} /> Acceso protegido mediante contraseña</div>
+          <a className="auth-public-link" href="/registro">Consultar Registro PD público</a>
           <span className="version">ACCESO PROTEGIDO · GESTIÓN PD</span>
         </div>
       </div>
