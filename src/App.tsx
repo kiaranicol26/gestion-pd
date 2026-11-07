@@ -217,7 +217,9 @@ export default function App() {
     setSection("dashboard");
   }
 
-  if (window.location.pathname.replace(/\\/+$/, "") === "/registro") return <PublicRoster />;\n\n  if (!isSupabaseConfigured) {
+  if (window.location.pathname.replace(/\/+$/, "") === "/registro") return <PublicRoster />;
+
+  if (!isSupabaseConfigured) {
     return (
       <div className="auth-screen">
         <div className="auth-card">
